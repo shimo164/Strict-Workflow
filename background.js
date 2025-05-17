@@ -1,366 +1,281 @@
+/* global chrome */
+
 /*
-
-  Constants
-
+  ────────────────────────────
+  Preferences (async storage)
+  ────────────────────────────
 */
-
-var PREFS = loadPrefs(),
-BADGE_BACKGROUND_COLORS = {
-  work: [192, 0, 0, 255],
-  break: [0, 192, 0, 255]
-}, RING = new Audio("ring.ogg"),
-ringLoaded = false;
-
-loadRingIfNecessary();
 
 function defaultPrefs() {
   return {
-    siteList: [
-      'facebook.com',
-      'youtube.com',
-      'twitter.com',
-      'tumblr.com',
-      'pinterest.com',
-      'myspace.com',
-      'livejournal.com',
-      'digg.com',
-      'stumbleupon.com',
-      'reddit.com',
-      'kongregate.com',
-      'newgrounds.com',
-      'addictinggames.com',
-      'hulu.com'
-    ],
-    durations: { // in seconds
-      work: 25 * 60,
-      break: 5 * 60
+    siteList: [],
+    durations: {          // 秒
+      work:  25 * 60,
+      break: 5  * 60
     },
-    shouldRing: true,
-    clickRestarts: false,
-    whitelist: false
-  }
+    showNotifications: true,
+    shouldRing:        true,
+    clickRestarts:     false,
+    whitelist:         false
+  };
 }
 
-function loadPrefs() {
-  if(typeof localStorage['prefs'] !== 'undefined') {
-    return updatePrefsFormat(JSON.parse(localStorage['prefs']));
-  } else {
-    return savePrefs(defaultPrefs());
-  }
-}
-
-function updatePrefsFormat(prefs) {
-  // Sometimes we need to change the format of the PREFS module. When just,
-  // say, adding boolean flags with false as the default, there's no
-  // compatibility issue. However, in more complicated situations, we need
-  // to modify an old PREFS module's structure for compatibility.
-  
-  if(prefs.hasOwnProperty('domainBlacklist')) {
-    // Upon adding the whitelist feature, the domainBlacklist property was
-    // renamed to siteList for clarity.
-    
+async function updatePrefsFormat(prefs) {
+  if (prefs.domainBlacklist) {
     prefs.siteList = prefs.domainBlacklist;
     delete prefs.domainBlacklist;
-    savePrefs(prefs);
-    console.log("Renamed PREFS.domainBlacklist to PREFS.siteList");
   }
-  
-  if(!prefs.hasOwnProperty('showNotifications')) {
-    // Upon adding the option to disable notifications, added the
-    // showNotifications property, which defaults to true.
+  if (!prefs.hasOwnProperty("showNotifications"))
     prefs.showNotifications = true;
-    savePrefs(prefs);
-    console.log("Added PREFS.showNotifications");
-  }
-  
+
+  await chrome.storage.local.set({ prefs });
   return prefs;
 }
 
-function savePrefs(prefs) {
-  localStorage['prefs'] = JSON.stringify(prefs);
+async function loadPrefs() {
+  const { prefs } = await chrome.storage.local.get("prefs");
+  return prefs
+    ? updatePrefsFormat(prefs)
+    : (await chrome.storage.local.set({ prefs: defaultPrefs() }),
+       defaultPrefs());
+}
+
+async function savePrefs(prefs) {
+  await chrome.storage.local.set({ prefs });
   return prefs;
-}
-
-function setPrefs(prefs) {
-  PREFS = savePrefs(prefs);
-  loadRingIfNecessary();
-  return prefs;
-}
-
-function loadRingIfNecessary() {
-  console.log('is ring necessary?');
-  if(PREFS.shouldRing && !ringLoaded) {
-    console.log('ring is necessary');
-    RING.onload = function () {
-      console.log('ring loaded');
-      ringLoaded = true;
-    }
-    RING.load();
-  }
-}
-
-var ICONS = {
-  ACTION: {
-    CURRENT: {},
-    PENDING: {}
-  },
-  FULL: {},
-}, iconTypeS = ['default', 'work', 'break'],
-  iconType;
-for(var i in iconTypeS) {
-  iconType = iconTypeS[i];
-  ICONS.ACTION.CURRENT[iconType] = "icons/" + iconType + ".png";
-  ICONS.ACTION.PENDING[iconType] = "icons/" + iconType + "_pending.png";
-  ICONS.FULL[iconType] = "icons/" + iconType + "_full.png";
 }
 
 /*
-
-  Models
-
+  ────────────────────────────
+  Icons
+  ────────────────────────────
 */
 
-function Pomodoro(options) {
-  this.mostRecentMode = 'break';
-  this.nextMode = 'work';
-  this.running = false;
-
-  this.onTimerEnd = function (timer) {
-    this.running = false;
-  }
-
-  this.start = function () {
-    var mostRecentMode = this.mostRecentMode, timerOptions = {};
-    this.mostRecentMode = this.nextMode;
-    this.nextMode = mostRecentMode;
-
-    for(var key in options.timer) {
-      timerOptions[key] = options.timer[key];
-    }
-    timerOptions.type = this.mostRecentMode;
-    timerOptions.duration = options.getDurations()[this.mostRecentMode];
-    this.running = true;
-    this.currentTimer = new Pomodoro.Timer(this, timerOptions);
-    this.currentTimer.start();
-  }
-  
-  this.restart = function () {
-      if(this.currentTimer) {
-          this.currentTimer.restart();
-      }
-  }
-}
-
-Pomodoro.Timer = function Timer(pomodoro, options) {
-  var tickInterval, timer = this;
-  this.pomodoro = pomodoro;
-  this.timeRemaining = options.duration;
-  this.type = options.type;
-
-  this.start = function () {
-    tickInterval = setInterval(tick, 1000);
-    options.onStart(timer);
-    options.onTick(timer);
-  }
-  
-  this.restart = function() {
-      this.timeRemaining = options.duration;
-      options.onTick(timer);
-  }
-
-  this.timeRemainingString = function () {
-    if(this.timeRemaining >= 60) {
-      return Math.round(this.timeRemaining / 60) + "m";
-    } else {
-      return (this.timeRemaining % 60) + "s";
-    }
-  }
-
-  function tick() {
-    timer.timeRemaining--;
-    options.onTick(timer);
-    if(timer.timeRemaining <= 0) {
-      clearInterval(tickInterval);
-      pomodoro.onTimerEnd(timer);
-      options.onEnd(timer);
-    }
-  }
+const ICONS = {
+  ACTION: { CURRENT: {}, PENDING: {} },
+  FULL:   {}
+};
+for (const type of ["default", "work", "break"]) {
+  ICONS.ACTION.CURRENT[type]  = `icons/${type}.png`;
+  ICONS.ACTION.PENDING[type]  = `icons/${type}_pending.png`;
+  ICONS.FULL[type]            = `icons/${type}_full.png`;
 }
 
 /*
-
-  Views
-
+  ────────────────────────────
+  Utility  (location match)
+  ────────────────────────────
 */
-
-// The code gets really cluttered down here. Refactor would be in order,
-// but I'm busier with other projects >_<
-
-function locationsMatch(location, listedPattern) {
-  return domainsMatch(location.domain, listedPattern.domain) &&
-    pathsMatch(location.path, listedPattern.path);
-}
 
 function parseLocation(location) {
-  var components = location.split('/');
-  return {domain: components.shift(), path: components.join('/')};
+  const [domain, ...pathParts] = location.split("/");
+  return { domain, path: pathParts.join("/") };
 }
 
 function pathsMatch(test, against) {
-  /*
-    index.php ~> [null]: pass
-    index.php ~> index: pass
-    index.php ~> index.php: pass
-    index.php ~> index.phpa: fail
-    /path/to/location ~> /path/to: pass
-    /path/to ~> /path/to: pass
-    /path/to/ ~> /path/to/location: fail
-  */
-
-  return !against || test.substr(0, against.length) == against;
+  return !against || test.startsWith(against);
 }
 
 function domainsMatch(test, against) {
-  /*
-    google.com ~> google.com: case 1, pass
-    www.google.com ~> google.com: case 3, pass
-    google.com ~> www.google.com: case 2, fail
-    google.com ~> yahoo.com: case 3, fail
-    yahoo.com ~> google.com: case 2, fail
-    bit.ly ~> goo.gl: case 2, fail
-    mail.com ~> gmail.com: case 2, fail
-    gmail.com ~> mail.com: case 3, fail
-  */
+  if (test === against) return true;
+  const offset = test.length - against.length - 1;
+  return offset >= 0 && test.slice(offset) === "." + against;
+}
 
-  // Case 1: if the two strings match, pass
-  if(test === against) {
-    return true;
-  } else {
-    var testFrom = test.length - against.length - 1;
+function locationsMatch(loc, pattern) {
+  return (
+    domainsMatch(loc.domain, pattern.domain) &&
+    pathsMatch(loc.path, pattern.path)
+  );
+}
 
-    // Case 2: if the second string is longer than first, or they are the same
-    // length and do not match (as indicated by case 1 failing), fail
-    if(testFrom < 0) {
-      return false;
-    } else {
-      // Case 3: if and only if the first string is longer than the second and
-      // the first string ends with a period followed by the second string,
-      // pass
-      return test.substr(testFrom) === '.' + against;
-    }
+function isLocationBlocked(location, prefs) {
+  for (const patternStr of prefs.siteList) {
+    const pattern = parseLocation(patternStr);
+    if (locationsMatch(location, pattern)) return !prefs.whitelist;
+  }
+  return prefs.whitelist;
+}
+
+async function executeInTabIfBlocked(action, tab, prefs) {
+  if (!tab.url) return;
+  const loc = parseLocation(tab.url.split("://")[1]);
+  if (isLocationBlocked(loc, prefs)) {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: [`content_scripts/${action}.js`]
+    });
   }
 }
 
-function isLocationBlocked(location) {
-  for(var k in PREFS.siteList) {
-    listedPattern = parseLocation(PREFS.siteList[k]);
-    if(locationsMatch(location, listedPattern)) {
-      // If we're in a whitelist, a matched location is not blocked => false
-      // If we're in a blacklist, a matched location is blocked => true
-      return !PREFS.whitelist;
-    }
-  }
-  
-  // If we're in a whitelist, an unmatched location is blocked => true
-  // If we're in a blacklist, an unmatched location is not blocked => false
-  return PREFS.whitelist;
-}
-
-function executeInTabIfBlocked(action, tab) {
-  var file = "content_scripts/" + action + ".js", location;
-  location = tab.url.split('://');
-  location = parseLocation(location[1]);
-  
-  if(isLocationBlocked(location)) {
-    chrome.tabs.executeScript(tab.id, {file: file});
+async function executeInAllBlockedTabs(action, prefs) {
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    await executeInTabIfBlocked(action, tab, prefs);
   }
 }
 
-function executeInAllBlockedTabs(action) {
-  var windows = chrome.windows.getAll({populate: true}, function (windows) {
-    var tabs, tab, domain, listedDomain;
-    for(var i in windows) {
-      tabs = windows[i].tabs;
-      for(var j in tabs) {
-        executeInTabIfBlocked(action, tabs[j]);
-      }
+/*
+  ────────────────────────────
+  Pomodoro model
+  ────────────────────────────
+*/
+
+class PomodoroTimer {
+  constructor(pomodoro, opts) {
+    this.pomodoro = pomodoro;
+    this.type      = opts.type;
+    this.timeLeft  = opts.duration;
+    this._onStart  = opts.onStart;
+    this._onTick   = opts.onTick;
+    this._onEnd    = opts.onEnd;
+  }
+
+  start() {
+    this._onStart?.(this);
+    this._onTick?.(this);
+    this._interval = setInterval(() => this._tick(), 1000);
+  }
+
+  restart() {
+    this.timeLeft = this.pomodoro.durations[this.type];
+    this._onTick?.(this);
+  }
+
+  _tick() {
+    this.timeLeft--;
+    this._onTick?.(this);
+    if (this.timeLeft <= 0) {
+      clearInterval(this._interval);
+      this._onEnd?.(this);
     }
-  });
+  }
+
+  timeStr() {
+    return this.timeLeft >= 60
+      ? Math.round(this.timeLeft / 60) + "m"
+      : this.timeLeft + "s";
+  }
 }
 
-var notification, mainPomodoro = new Pomodoro({
-  getDurations: function () { return PREFS.durations },
-  timer: {
-    onEnd: function (timer) {
-      chrome.browserAction.setIcon({
-        path: ICONS.ACTION.PENDING[timer.pomodoro.nextMode]
+class Pomodoro {
+  constructor(prefs, callbacks) {
+    this.prefs   = prefs;
+    this.running = false;
+    this.next    = "work";
+    this.prev    = "break";
+    this.cbs     = callbacks;
+  }
+
+  get durations() { return this.prefs.durations; }
+
+  async start() {
+    this.prev = this.next;
+    this.next = this.prev === "work" ? "break" : "work";
+    const type = this.prev;
+
+    this.running = true;
+    this.timer = new PomodoroTimer(this, {
+      type,
+      duration: this.durations[type],
+      ...this.cbs
+    });
+    this.timer.start();
+  }
+
+  restart() {
+    if (this.timer) this.timer.restart();
+  }
+}
+
+/*
+  ────────────────────────────
+  Main logic
+  ────────────────────────────
+*/
+
+(async () => {
+  const PREFS = await loadPrefs();
+
+  const pomodoro = new Pomodoro(PREFS, {
+    onStart: async (timer) => {
+      await chrome.action.setIcon({ path: ICONS.ACTION.CURRENT[timer.type] });
+      await chrome.action.setBadgeBackgroundColor({
+        color: timer.type === "work" ? [192, 0, 0, 255] : [0, 192, 0, 255]
       });
-      chrome.browserAction.setBadgeText({text: ''});
-      
-      if(PREFS.showNotifications) {
-        var nextModeName = chrome.i18n.getMessage(timer.pomodoro.nextMode);
-        chrome.notifications.create("", {
+      await chrome.storage.local.set({ currentMode: timer.type });
+      await executeInAllBlockedTabs(
+        timer.type === "work" ? "block" : "unblock",
+        PREFS
+      );
+    },
+
+    onTick: async (timer) => {
+      await chrome.action.setBadgeText({ text: timer.timeStr() });
+    },
+
+    onEnd: async (timer) => {
+      await chrome.action.setIcon({
+        path: ICONS.ACTION.PENDING[pomodoro.next]
+      });
+      await chrome.action.setBadgeText({ text: "" });
+      await chrome.storage.local.set({ currentMode: "idle" });
+
+      if (PREFS.showNotifications) {
+        const nextName = chrome.i18n.getMessage(pomodoro.next);
+        await chrome.notifications.create({
           type: "basic",
           title: chrome.i18n.getMessage("timer_end_notification_header"),
-          message: chrome.i18n.getMessage("timer_end_notification_body",
-                                          nextModeName),
-          priority: 2,
-          iconUrl: ICONS.FULL[timer.type]
-        }, function() {});
+          message: chrome.i18n.getMessage(
+            "timer_end_notification_body",
+            nextName
+          ),
+          iconUrl: ICONS.FULL[timer.type],
+          priority: 2
+        });
       }
-      
-      if(PREFS.shouldRing) {
-        console.log("playing ring", RING);
-        RING.play();
+
+      /*  音声は Service Worker で直接鳴らせない
+          Offscreen Document を使う場合はここを実装
+      if (PREFS.shouldRing) {
+        // play ring
       }
-    },
-    onStart: function (timer) {
-      chrome.browserAction.setIcon({
-        path: ICONS.ACTION.CURRENT[timer.type]
-      });
-      chrome.browserAction.setBadgeBackgroundColor({
-        color: BADGE_BACKGROUND_COLORS[timer.type]
-      });
-      if(timer.type == 'work') {
-        executeInAllBlockedTabs('block');
-      } else {
-        executeInAllBlockedTabs('unblock');
-      }
-      if(notification) notification.cancel();
-      var tabViews = chrome.extension.getViews({type: 'tab'}), tab;
-      for(var i in tabViews) {
-        tab = tabViews[i];
-        if(typeof tab.startCallbacks !== 'undefined') {
-          tab.startCallbacks[timer.type]();
-        }
-      }
-    },
-    onTick: function (timer) {
-      chrome.browserAction.setBadgeText({text: timer.timeRemainingString()});
+      */
+      pomodoro.running = false;
     }
-  }
-});
-
-chrome.browserAction.onClicked.addListener(function (tab) {
-  if(mainPomodoro.running) { 
-      if(PREFS.clickRestarts) {
-          mainPomodoro.restart();
-      }
-  } else {
-      mainPomodoro.start();
-  }
-});
-
-chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
-  if(mainPomodoro.mostRecentMode == 'work') {
-    executeInTabIfBlocked('block', tab);
-  }
-});
-
-chrome.notifications.onClicked.addListener(function (id) {
-  // Clicking the notification brings you back to Chrome, in whatever window
-  // you were last using.
-  chrome.windows.getLastFocused(function (window) {
-    chrome.windows.update(window.id, {focused: true});
   });
-});
+
+  /* ───── event listeners ───── */
+
+  chrome.action.onClicked.addListener(async () => {
+    if (pomodoro.running) {
+      if (PREFS.clickRestarts) pomodoro.restart();
+    } else {
+      pomodoro.start();
+    }
+  });
+
+  chrome.tabs.onUpdated.addListener(async (_, __, tab) => {
+    if (pomodoro.prev === "work") {
+      await executeInTabIfBlocked("block", tab, PREFS);
+    }
+  });
+
+  chrome.notifications.onClicked.addListener((_) =>
+    chrome.windows.getLastFocused((w) =>
+      chrome.windows.update(w.id, { focused: true })
+    )
+  );
+
+  /* expose setter for options page */
+  chrome.runtime.onMessage.addListener((msg, _, sendResponse) => {
+    if (msg.type === "setPrefs") {
+      (async () => {
+        Object.assign(PREFS, msg.payload);
+        await savePrefs(PREFS);
+        sendResponse({ ok: true });
+      })();
+      return true;
+    }
+  });
+})();

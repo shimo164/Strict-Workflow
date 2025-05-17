@@ -17,11 +17,12 @@
       overlay.style.textAlign = 'center';
       overlay.style.color = '#000';
       overlay.style.font = 'normal normal normal 16px/1 sans-serif';
-      
-      img.src = chrome.extension.getURL('icons/work_full.png');
+
+      img.src = chrome.runtime.getURL('icons/work_full.png');
       img.style.marginBottom = '1em';
+      img.style.margin = '0 auto 1em auto';
       overlay.appendChild(img);
-      
+
       for(var i in lines) {
         p = document.createElement('p');
         p.innerText = lines[i];
@@ -31,7 +32,7 @@
       document.body.appendChild(overlay);
     }
   }
-  
+
   if(typeof document === 'undefined') {
     window.addEventListener("DOMContentLoaded", ready);
   } else {
