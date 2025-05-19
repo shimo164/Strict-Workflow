@@ -98,13 +98,17 @@ function isLocationBlocked(location, prefs) {
 }
 
 async function executeInTabIfBlocked(action, tab, prefs) {
-  if (!tab.url) return;
+  if (!tab.url || tab.status === "unloaded") return;
   const loc = parseLocation(tab.url.split("://")[1]);
   if (isLocationBlocked(loc, prefs)) {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: [`content_scripts/${action}.js`]
-    });
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: [`content_scripts/${action}.js`],
+      });
+    } catch (error) {
+      console.warn(`Failed to execute script in tab ${tab.id}:`, error);
+    }
   }
 }
 
