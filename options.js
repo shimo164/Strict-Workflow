@@ -1,16 +1,16 @@
 /* global chrome */
 
-const form              = document.getElementById("options-form");
-const siteListEl        = document.getElementById("site-list");
-const modeSelectEl      = document.getElementById("blacklist-or-whitelist");
-const showNotifEl       = document.getElementById("show-notifications");
-const shouldRingEl      = document.getElementById("should-ring");
-const clickRestartsEl   = document.getElementById("click-restarts");
-const saveOkEl          = document.getElementById("save-successful");
-const timeErrEl         = document.getElementById("time-format-error");
-const workDurEl         = document.getElementById("work-duration");
-const breakDurEl        = document.getElementById("break-duration");
-const TIME_REGEX        = /^([0-9]+)(:([0-9]{2}))?$/;
+const form                = document.getElementById("options-form");
+const siteListEl          = document.getElementById("site-list");
+const modeSelectEl        = document.getElementById("blacklist-or-whitelist");
+const showNotificationsEl = document.getElementById("show-notifications");
+const shouldRingEl        = document.getElementById("should-ring");
+const clickRestartsEl     = document.getElementById("click-restarts");
+const saveOkEl            = document.getElementById("save-successful");
+const timeErrEl           = document.getElementById("time-format-error");
+const workDurEl           = document.getElementById("work-duration");
+const breakDurEl          = document.getElementById("break-duration");
+const TIME_REGEX          = /^([0-9]+)(:([0-9]{2}))?$/;
 
 /* ───── i18n ───── */
 document
@@ -28,7 +28,7 @@ chrome.storage.local.get(["prefs", "currentMode"], ({ prefs, currentMode }) => {
 
   siteListEl.value          = prefs.siteList.join("\n");
   modeSelectEl.selectedIndex = prefs.whitelist ? 1 : 0;
-  showNotifEl.checked       = prefs.showNotifications;
+  showNotificationsEl.checked = prefs.showNotifications;
   shouldRingEl.checked      = prefs.shouldRing;
   clickRestartsEl.checked   = prefs.clickRestarts;
   workDurEl.value           = prefs.durations.work  / 60;
@@ -52,7 +52,7 @@ form.addEventListener("submit", (e) => {
   const prefs = {
     siteList: siteListEl.value.split(/\r?\n/),
     durations,
-    showNotifications: showNotifEl.checked,
+    showNotifications: showNotificationsEl.checked,
     shouldRing: shouldRingEl.checked,
     clickRestarts: clickRestartsEl.checked,
     whitelist: modeSelectEl.selectedIndex === 1
@@ -75,7 +75,7 @@ function updateDisabled(mode) {
   const disabled = mode === "work";
   [
     siteListEl, modeSelectEl, workDurEl,
-    breakDurEl, showNotifEl, shouldRingEl, clickRestartsEl
+    breakDurEl, showNotificationsEl, shouldRingEl, clickRestartsEl
   ].forEach((el) => (el.disabled = disabled));
 
   document.body.className = disabled ? "work" : "";
