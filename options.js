@@ -11,6 +11,7 @@ const timeErrEl           = document.getElementById("time-format-error");
 const workDurEl           = document.getElementById("work-duration");
 const breakDurEl          = document.getElementById("break-duration");
 const TIME_REGEX          = /^([0-9]+)(:([0-9]{2}))?$/;
+const stopButton          = document.getElementById("stop-timer");
 
 /* ───── i18n ───── */
 document
@@ -61,6 +62,15 @@ form.addEventListener("submit", (e) => {
   chrome.runtime.sendMessage({ type: "setPrefs", payload: prefs }, () => {
     saveOkEl.classList.add("show");
   });
+});
+
+/* ───── stop button click listener ───── */
+stopButton.addEventListener("click", () => {
+  if (confirm("Are you sure to stop?")) { // Show confirmation dialog
+    chrome.runtime.sendMessage({ type: "stopTimer" }, () => {
+      alert("Timer has been stopped and reset.");
+    });
+  }
 });
 
 /* ───── storage change listener ───── */

@@ -277,5 +277,21 @@ class Pomodoro {
       })();
       return true;
     }
+
+    if (msg.type === "stopTimer") {
+      if (pomodoro.timer) {
+        clearInterval(pomodoro.timer._interval); // Clear the timer interval
+        pomodoro.running = false; // Mark the timer as not running
+        pomodoro.timer = null; // Reset the timer instance
+      }
+
+      chrome.action.setBadgeText({ text: "" }); // Clear the badge text
+      chrome.action.setIcon({ path: ICONS.ACTION.CURRENT["default"] }); // Reset the icon
+      chrome.storage.local.set({ currentMode: "none" }, () => {
+        console.log("Timer stopped and reset.");
+        sendResponse();
+      });
+      return true; // Keep the message channel open for async response
+    }
   });
 })();
