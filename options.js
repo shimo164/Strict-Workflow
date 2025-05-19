@@ -66,10 +66,8 @@ form.addEventListener("submit", (e) => {
 
 /* ───── stop button click listener ───── */
 stopButton.addEventListener("click", () => {
-  if (confirm("Are you sure to stop?")) { // Show confirmation dialog
-    chrome.runtime.sendMessage({ type: "stopTimer" }, () => {
-      alert("Timer has been stopped and reset.");
-    });
+  if (confirm("Are you sure to stop?")) {
+    chrome.runtime.sendMessage({ type: "stopTimer" });
   }
 });
 

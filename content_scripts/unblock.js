@@ -1,4 +1,6 @@
 (function () {
-  var overlay = document.getElementById('pomodoro-extension-overlay');
-  document.body.removeChild(overlay);
+  const overlay = document.getElementById("pomodoro-extension-overlay");
+  if (overlay) {
+    document.body.removeChild(overlay);
+  }
 })();
