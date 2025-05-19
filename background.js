@@ -292,6 +292,7 @@ class Pomodoro {
     }
 
     chrome.action.setBadgeText({ text: "" });
+    // TODO: icons/default.png is used but not defined in ICONS
     chrome.action.setIcon({ path: ICONS.ACTION.CURRENT["default"] });
     chrome.storage.local.set({ currentMode: "none" }, () => {
       console.log("Timer stopped and reset.");
@@ -299,3 +300,4 @@ class Pomodoro {
     });
   }
 })();
+``
