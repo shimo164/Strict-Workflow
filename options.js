@@ -72,13 +72,13 @@ chrome.storage.onChanged.addListener((chg, area) => {
 
 /* ───── helpers ───── */
 function updateDisabled(mode) {
-  const disabled = mode === "work";
+  const disabled = false; // Always allow settings to be changed
   [
     siteListEl, modeSelectEl, workDurEl,
     breakDurEl, showNotificationsEl, shouldRingEl, clickRestartsEl
   ].forEach((el) => (el.disabled = disabled));
 
-  document.body.className = disabled ? "work" : "";
+  document.body.className = mode === "work" ? "work" : "";
 }
 
 ["input", "change"].forEach((ev) =>
