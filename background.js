@@ -55,11 +55,14 @@ const ICONS = {
   ACTION: { CURRENT: {}, PENDING: {} },
   FULL:   {}
 };
-for (const type of ["default", "work", "break"]) {
-  ICONS.ACTION.CURRENT[type]  = `icons/${type}.png`;
-  ICONS.ACTION.PENDING[type]  = `icons/${type}_pending.png`;
-  ICONS.FULL[type]            = `icons/${type}_full.png`;
-}
+
+// 実際のファイル構造に合わせて設定
+ICONS.ACTION.CURRENT.work = "icons/work.png";
+ICONS.ACTION.CURRENT.break = "icons/break.png";
+ICONS.ACTION.PENDING.work = "icons/work_pending.png";
+ICONS.ACTION.PENDING.break = "icons/break_pending.png";
+ICONS.FULL.work = "icons/work_full.png";
+ICONS.FULL.break = "icons/break_full.png";
 
 /*
   ────────────────────────────
@@ -166,8 +169,8 @@ class Pomodoro {
   constructor(prefs, callbacks) {
     this.prefs   = prefs;
     this.running = false;
-    this.next    = "work";
-    this.prev    = "break";
+    this.next    = "work";  // 次に開始するタイマーのタイプ
+    this.prev    = null;    // 現在実行中または最後に実行したタイマーのタイプ
     this.cbs     = callbacks;
   }
 
@@ -203,6 +206,7 @@ class Pomodoro {
 
   const pomodoro = new Pomodoro(PREFS, {
     onStart: async (timer) => {
+      console.log(`Starting ${timer.type} timer`);
       await chrome.action.setIcon({ path: ICONS.ACTION.CURRENT[timer.type] });
       await chrome.action.setBadgeBackgroundColor({
         color: timer.type === "work" ? [192, 0, 0, 255] : [0, 192, 0, 255]
@@ -219,6 +223,7 @@ class Pomodoro {
     },
 
     onEnd: async (timer) => {
+      console.log(`${timer.type} timer ended, next: ${pomodoro.next}`);
       await chrome.action.setIcon({
         path: ICONS.ACTION.PENDING[pomodoro.next]
       });
@@ -239,23 +244,38 @@ class Pomodoro {
         });
       }
 
-      /*  音声は Service Worker で直接鳴らせない
-          Offscreen Document を使う場合はここを実装
-      if (PREFS.shouldRing) {
-        // play ring
-      }
-      */
       pomodoro.running = false;
     }
   });
 
+  // 初期状態を確実に設定（拡張機能リロード時）
+  console.log("Initializing extension state");
+  pomodoro.running = false;
+  pomodoro.timer = null;
+  pomodoro.next = "work";
+  pomodoro.prev = null;
+  
+  // UIを初期状態に設定
+  await chrome.action.setIcon({ path: ICONS.ACTION.PENDING.work });
+  await chrome.action.setBadgeText({ text: "" });
+  await chrome.action.setBadgeBackgroundColor({ color: [192, 0, 0, 255] });
+  await chrome.storage.local.set({ currentMode: "idle" });
+  
+  console.log("Extension initialized - ready for work timer");
+
   /* ───── event listeners ───── */
 
   chrome.action.onClicked.addListener(async () => {
+    console.log("Action clicked - running:", pomodoro.running, "next:", pomodoro.next);
+    
     if (pomodoro.running) {
-      if (PREFS.clickRestarts) pomodoro.restart();
+      if (PREFS.clickRestarts) {
+        console.log("Restarting current timer");
+        pomodoro.restart();
+      }
     } else {
-      pomodoro.start();
+      console.log("Starting new timer");
+      await pomodoro.start();
     }
   });
 
@@ -288,20 +308,25 @@ class Pomodoro {
     }
   });
 
-  function stopPomodoroTimer(sendResponse) {
+  async function stopPomodoroTimer(sendResponse) {
+    console.log("Stopping timer");
     if (pomodoro.timer) {
       clearInterval(pomodoro.timer._interval);
       pomodoro.running = false;
       pomodoro.timer = null;
     }
 
-    chrome.action.setBadgeText({ text: "" });
-    // TODO: icons/default.png is used but not defined in ICONS
-    chrome.action.setIcon({ path: ICONS.ACTION.CURRENT["default"] });
-    chrome.storage.local.set({ currentMode: "none" }, () => {
-      console.log("Timer stopped and reset.");
-      sendResponse();
-    });
+    // 停止後は最初の状態（work待機）に戻す
+    pomodoro.next = "work";
+    pomodoro.prev = null;
+
+    await chrome.action.setBadgeText({ text: "" });
+    await chrome.action.setIcon({ path: ICONS.ACTION.PENDING.work });
+    await chrome.action.setBadgeBackgroundColor({ color: [192, 0, 0, 255] });
+    await executeInAllBlockedTabs("unblock", PREFS);
+    await chrome.storage.local.set({ currentMode: "idle" });
+    
+    console.log("Timer stopped and reset to initial state");
+    sendResponse();
   }
 })();
-``

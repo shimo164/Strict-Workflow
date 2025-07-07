@@ -1,5 +1,5 @@
 body {
-  background: url(icons/work_full.png) no-repeat fixed right bottom;
+  /* background: url(icons/work_full.png) no-repeat fixed right bottom; TODO: remove */
   font-family: 'Lucida Grande', sans-serif;
   color: rgb(48, 57, 66);
   user-select: none; /* Standard property */

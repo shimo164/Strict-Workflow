@@ -37,8 +37,7 @@
    "web_accessible_resources": [
      {
        "resources": [
-         "icons/work_full.png",
-         "icons/break_full.png"
+         "icons/work_full.png"
        ],
        "matches": ["<all_urls>"]
      }
